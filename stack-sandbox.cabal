@@ -18,8 +18,7 @@ library
   exposed-modules:     Lib
                      , Window
                      , Parser
-  build-depends:       attoparsec
-                     , base >= 4.7 && < 5
+  build-depends:       base >= 4.7 && < 5
                      , containers
                      , fclabels
                      , mtl
