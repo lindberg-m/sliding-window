@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Interface where
 
 import           Window (Window(..), initWindow)
@@ -13,13 +12,13 @@ import           Control.Monad.Reader
 import           Options.Applicative
 
 data InterfaceOptions =
-  InterfaceOptions { infile   :: Maybe String,
-                     sepChar  :: Maybe String,
-                     groups   :: Maybe Int,
-                     position :: Maybe Int,
+  InterfaceOptions { infile    :: Maybe String,
+                     sepChar   :: Maybe String,
+                     groups    :: Maybe Int,
+                     position  :: Maybe Int,
                      iValues   :: Maybe Int,
-                     wSize    :: Integer,
-                     wStep    :: Integer,
+                     wSize     :: Integer,
+                     wStep     :: Integer,
                      iHeader   :: Bool}
   deriving (Show, Eq)
 

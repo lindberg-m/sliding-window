@@ -8,7 +8,6 @@ import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catch
 import qualified Data.Text.Lazy as T
 import           Data.Text.Lazy.Read         (Reader, decimal, double)
 
-catchE
 data ParseResult a b = ParseResult { group :: Maybe T.Text,
                                      posit :: Maybe a,
                                      value :: b}
