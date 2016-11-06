@@ -1,8 +1,9 @@
 module Main where
 
-import Lib
 import Window
 import Data
+import Interface
+import Parser
 
 main :: IO ()
-main = someFunc
+main = return ()
