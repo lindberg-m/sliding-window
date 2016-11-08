@@ -17,22 +17,20 @@ import Data.Function              (on)
 import Data.Sequence              (Seq, (|>), dropWhileL)
 
 
-type SlidingWindow m p a = ReaderT InterfaceOptions (StateT (Window a (p a)) m) [(Window a (p a))]
+type SlidingWindow m p a = StateT (Window a (p a)) (ReaderT InterfaceOptions m) [(Window a (p a))]
 
-foobar :: (HasPosition p Int, Monad m) => [p Int] -> App (StateT (Window Int (p Int)) m) [Window Int (p Int)]
-foobar x = mapReaderT lift $ slidingWindow x
 {- Main functions -}
 slidingWindow :: (Monad m, HasPosition p Int) =>
                   [p Int] ->
                   SlidingWindow m p Int
-slidingWindow []       = lift $ get >>= return . return
+slidingWindow []       = get >>= return . return
 slidingWindow l@(x:xs) = do
-  window <- lift get
+  window <- get
   case coverage (start window) (end window) (position x) of
     Above    -> slidingWindow xs      -- Continue with next input
 
     Overlap  -> do                    -- Append x to window and continue with next input
-      lift $ modify (\st -> st{values = values window |> x})
+      modify (\st -> st{values = values window |> x})
       slidingWindow xs
       
     Under    -> do                    -- Move the window with one step
@@ -41,14 +39,14 @@ slidingWindow l@(x:xs) = do
       return (window:rest)
 
 stepWindow :: (Monad m, HasPosition p Int) =>
-               ReaderT InterfaceOptions (StateT (Window Int (p Int)) m) ()
+              StateT (Window Int (p Int)) (ReaderT InterfaceOptions m) ()
 stepWindow = do
-  step           <- asks wStep
-  (Window s e v) <- lift get
+  step           <- lift $ asks wStep
+  (Window s e v) <- get
   let s' = s + step
       e' = e + step
       v' = dropWhileL (onP (s' >)) v
-  lift . put $ Window s' e' v'
+  put $ Window s' e' v'
 
 
 coverage :: Ord a => a -> a -> a -> Coverage  
