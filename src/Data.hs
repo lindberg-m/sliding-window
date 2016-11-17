@@ -11,8 +11,9 @@ import Control.Monad.Identity
 --import Control.Monad.Tr
 
 
+--type App2 a = ReaderT InterfaceOptions (Except String) a
 type App m a = ReaderT InterfaceOptions (ExceptT String m) a
-type App2 t a = ReaderT InterfaceOptions (t (ExceptT String Identity)) a
+--type App2 t a = ReaderT InterfaceOptions (t (ExceptT String Identity)) a
 
 
 getAppT :: Monad m => App m a -> InterfaceOptions -> m (Either String a)
@@ -62,7 +63,7 @@ class Ord a => HasPosition p a where
 
 
 -- Instances
-instance (Eq a, Ord b) => Eq (Positional a b) where
+instance (Eq a, Eq b) => Eq (Positional a b) where
   (Positional x y) == (Positional x' y') =
     x == x' && y == y'
 instance (Show a, Show b) => Show (Positional a b) where

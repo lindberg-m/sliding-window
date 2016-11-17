@@ -4,7 +4,7 @@ module Parser where
 import Data
 
 import           Data.Typeable
-import           Data.Either
+--import           Data.Either
 import           Control.Applicative         ((<*>), (<$>))
 import           Control.Monad.Trans         (lift)
 import           Control.Monad.Reader
@@ -42,10 +42,10 @@ parseLines' ((i,x):xs) = do
 
       delim  = asks sepChar >>= return . maybe "\t" T.pack -- default to tab
       valcol = asks valueCol >>= return . maybe 1 id       -- default to 1
-      maybeLookup c m xs f =
+      maybeLookup c e xs f =
           maybe (pure Nothing)
-          (\i -> Just <$>
-                 (catchE (lookupColumn i xs >>= f) (error' m)))
+          (\j -> Just <$>
+                 (catchE (lookupColumn j xs >>= f) (error' e)))
            c
       error' e1 e2 = throwE $
            (unwords ["Parse error at line", show i, "\n", T.unpack x,
@@ -61,11 +61,12 @@ read' r x = case r x of
   Right (a,_) -> pure a
   Left e      -> throwE $ unwords ["Couldn't parse",
                                   quote $ T.unpack x,
-                                  "as a",
-                                  type',
-                                  ":",
+                                  "as a", type' x, ":",
                                   e]
     where
-      type'   = show . typeOf . fst . head $ rights [r x] -- a bit hacky maybe
-      quote s = '"':(s ++ ['"'])
+--      type'   = show . typeOf . fst . head $ rights [r x] -- a bit hacky maybe
+      type' = show . typeOf . right . r
+      right (Right a) = a
+      quote s = concat $ ["\"", s, "\""]
+--      quote s = '"':(s ++ ['"'])
 
