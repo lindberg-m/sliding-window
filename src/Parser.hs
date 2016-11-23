@@ -1,10 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parser where
 
 import Data
 
 import           Data.Typeable
---import           Data.Either
 import           Control.Applicative         ((<*>), (<$>))
 import           Control.Monad.Trans         (lift)
 import           Control.Monad.Reader
@@ -32,24 +32,24 @@ parseLines' ((i,x):xs) = do
   return (res:rest)
     where
       parseLine l = do
-        (d,g,p,v) <- (,,,) <$> delim <*> asks groupCol <*> asks posCol <*> valcol
+        (d,g,p,v) <- (,,,) <$> asks (maybe "\t" T.pack . sepChar) -- default to tab
+                           <*> asks groupCol
+                           <*> asks posCol
+                           <*> asks (maybe 1 id . valueCol)       -- default to col 1
         let parts  = zip [1..] $ T.splitOn d l
-            gr     = maybeLookup g "group" parts pure
-            pos    = maybeLookup p "position" parts (read' R.decimal)
-            val    = catchE (lookupColumn v parts >>= (read' R.double))
-                            (error' "value")
-        return $ ParseResult <$> gr <*> pos <*> val
+        return $ ParseResult
+                   <$> maybeLookup "group" parts pure g
+                   <*> maybeLookup "position" parts (read' R.decimal) p
+                   <*> catchLookup "value" parts (read' R.double) v
 
-      delim  = asks sepChar >>= return . maybe "\t" T.pack -- default to tab
-      valcol = asks valueCol >>= return . maybe 1 id       -- default to 1
-      maybeLookup c e xs f =
-          maybe (pure Nothing)
-          (\j -> Just <$>
-                 (catchE (lookupColumn j xs >>= f) (error' e)))
-           c
-      error' e1 e2 = throwE $
-           (unwords ["Parse error at line", show i, "\n", T.unpack x,
-                     "\nCouldn't parse column for",show e1, "\n"]) ++ e2
+      catchLookup e xs f i =
+        catchE (lookupColumn i xs >>= f)
+               (\e' -> throwE $ (unwords
+                           ["Parse error at line", show i, "\n", T.unpack x,
+                            "\nCouldn't parse column for",show e, "\n"]) ++ e')
+      maybeLookup e xs f =
+          maybe (pure Nothing) (fmap Just <$> catchLookup e xs f)
+                 
 
 lookupColumn :: (Ord a, Show a, Monad m) => a -> [(a, b)] -> ExceptT String m b
 lookupColumn i xs = case lookup i xs of
@@ -64,9 +64,7 @@ read' r x = case r x of
                                   "as a", type' x, ":",
                                   e]
     where
---      type'   = show . typeOf . fst . head $ rights [r x] -- a bit hacky maybe
-      type' = show . typeOf . right . r
+      type' = show . typeOf . fst . right . r
       right (Right a) = a
       quote s = concat $ ["\"", s, "\""]
---      quote s = '"':(s ++ ['"'])
 

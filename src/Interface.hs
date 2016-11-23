@@ -1,17 +1,7 @@
 module Interface where
 
-import           Data
-import           Window --(Window(..), initWindow)
-import           Parser
-
-import qualified Data.Text.Lazy as T
-import           Data.List                   (nub)
-import           Data.Maybe                  (catMaybes)
-import           Control.Monad.Trans.Except
-import           Control.Monad.Identity
-import           Control.Monad.Reader
-import           Options.Applicative
-
+import Data
+import Options.Applicative
 
 options :: Parser InterfaceOptions
 options = InterfaceOptions <$>
@@ -40,17 +30,17 @@ options = InterfaceOptions <$>
        long "values" <>
        metavar "INT" <>
        help "If multiple columns exist, specify which column contains values of interest")) <*>
-  option auto
-     (short 's' <>
-      long "size" <>
-      metavar "INT" <>
-      help "Set the size of the window") <*>
-  option auto
-     (short 't' <>
-      long "step" <>
-      metavar "INT" <>
-      help "Set the step-size of the window") <*>
-  switch
-    (long "header" <>
-     help "Flag: Specify if file contains a header")
+   option auto
+      (short 's' <>
+       long "size" <>
+       metavar "INT" <>
+       help "Set the size of the window") <*>
+   option auto
+      (short 't' <>
+       long "step" <>
+       metavar "INT" <>
+       help "Set the step-size of the window") <*>
+   switch
+      (long "header" <>
+       help "Flag: Specify if file contains a header")
    

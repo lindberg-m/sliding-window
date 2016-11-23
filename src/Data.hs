@@ -8,13 +8,8 @@ import Data.Function       (on)
 import Control.Monad.Trans.Except
 import Control.Monad.Reader
 import Control.Monad.Identity
---import Control.Monad.Tr
 
-
---type App2 a = ReaderT InterfaceOptions (Except String) a
 type App m a = ReaderT InterfaceOptions (ExceptT String m) a
---type App2 t a = ReaderT InterfaceOptions (t (ExceptT String Identity)) a
-
 
 getAppT :: Monad m => App m a -> InterfaceOptions -> m (Either String a)
 getAppT r = runExceptT . runReaderT r
