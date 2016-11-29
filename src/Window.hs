@@ -11,24 +11,24 @@ import Data
 import Control.Monad.Trans        (lift)
 import Control.Monad.State        (StateT, evalStateT, get, modify, put)
 import Control.Monad.Trans.Except (ExceptT, throwE)
-import Control.Monad.Reader       (ReaderT, asks, ask, runReaderT)
+import Control.Monad.Reader       (ReaderT, Reader, asks, ask, runReaderT, runReader)
 import Data.Sequence              (Seq, (|>), dropWhileL)
+  
 
-
-type SlidingWindow m p a = StateT (Window a (p a)) (ReaderT a m) [(Window a (p a))]
+type SlidingWindow p a = StateT (Window a (p a)) (Reader a) [(Window a (p a))]
 
 {- Main functions -}
-runSlidingWindow :: (Monad m, HasPosition p a, Num a) =>
+runSlidingWindow :: (HasPosition p a, Num a) =>
                     Window a (p a) ->  -- inital state
                     a ->               -- step size
                     [p a] ->           -- input
-                    m [Window a (p a)]
-runSlidingWindow w s xs = runReaderT (evalStateT (slidingWindow xs) w) s
+                    [Window a (p a)]
+runSlidingWindow w s xs = runReader (evalStateT (slidingWindow xs) w) s
 
 
-slidingWindow :: (Monad m, HasPosition p a, Num a) =>
+slidingWindow :: (HasPosition p a, Num a) =>
                   [p a] ->
-                  SlidingWindow m p a
+                  SlidingWindow p a
 slidingWindow []       = get >>= return . return
 slidingWindow l@(x:xs) = do
   window <- get

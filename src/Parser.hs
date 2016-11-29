@@ -12,49 +12,49 @@ import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catch
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.Read as R    (Reader, decimal, double)
 
-
 type ParseResT m a b = ExceptT String m (ParseResult a b)
---type ParseFix m n a = ReaderT InterfaceOptions m [ParseResT n Int Double]
 
-parseLines :: (Monad m, Monad n) => T.Text -> App m [ParseResT n Int Double]
+parseLines :: (Monad m, Monad n) =>
+               T.Text ->
+               ReaderT InterfaceOptions m [ParseResT n Int Double]
 parseLines xs = do
-  conf <- ask
-  let f = if (header conf) then tail else id
-  return (runReader (parseLines' . f . zip [1..] $ T.lines xs) conf)
+  h <- asks header
+  let f = if h then tail else id
+  parseLines' . f . zip [1..] $ T.lines xs
 
 parseLines' :: (Show a, Num a, Monad m, Monad n) =>
                [(a, T.Text)] ->
                ReaderT InterfaceOptions m [ParseResT n Int Double]
 parseLines' []         = return []
 parseLines' ((i,x):xs) = do
-  res  <- parseLine x
-  rest <- parseLines' xs
-  return (res:rest)
-    where
-      parseLine l = do
-        (d,g,p,v) <- (,,,) <$> asks (maybe "\t" T.pack . sepChar) -- default to tab
-                           <*> asks groupCol
-                           <*> asks posCol
-                           <*> asks (maybe 1 id . valueCol)       -- default to col 1
-        let parts  = zip [1..] $ T.splitOn d l
-        return $ ParseResult
+  d <- asks $ maybe "\t" T.pack . sepChar -- Default to tab
+  g <- asks groupCol
+  p <- asks posCol
+  v <- asks $ maybe 1 id . valueCol       -- Default to column 1
+
+  let parts  = zip [1..] $ T.splitOn d x
+      res    = ParseResult
                    <$> maybeLookup "group" parts pure g
                    <*> maybeLookup "position" parts (read' R.decimal) p
                    <*> catchLookup "value" parts (read' R.double) v
+  rest <- parseLines' xs
+  return (res:rest)
+    where
+       catchLookup e xs f j =
+            catchE (lookupColumn j xs >>= f)
+                   (\e' -> throwE $ unwords
+                               ["Parse error at line", show i, "\n", T.unpack x,
+                                "\nCouldn't parse column", show j, "for",
+                                 show e, "\n", e'])
+       maybeLookup e xs f =
+            maybe (pure Nothing)
+                  (fmap Just <$> catchLookup e xs f)
 
-      catchLookup e xs f i =
-        catchE (lookupColumn i xs >>= f)
-               (\e' -> throwE $ (unwords
-                           ["Parse error at line", show i, "\n", T.unpack x,
-                            "\nCouldn't parse column for",show e, "\n"]) ++ e')
-      maybeLookup e xs f =
-          maybe (pure Nothing) (fmap Just <$> catchLookup e xs f)
-                 
-
-lookupColumn :: (Ord a, Show a, Monad m) => a -> [(a, b)] -> ExceptT String m b
-lookupColumn i xs = case lookup i xs of
-  Nothing -> throwE $ "Couldn locate column " ++ show i
-  Just a  -> pure a
+       lookupColumn i =
+            maybe (throwE $ "Couldn't lookate column " ++ show i)
+                  pure
+                  . lookup i
+                  
 
 read' :: (Monad m, Typeable a) => R.Reader a -> T.Text -> ExceptT String m a
 read' r x = case r x of
