@@ -6,6 +6,7 @@ import System.Exit
 import Options.Applicative                 hiding (value)
 import Data.Function                       (on)
 import Data.List                           (groupBy, zipWith4)
+import Data.Maybe
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as TIO
 import Control.Monad.Identity
@@ -21,24 +22,33 @@ import Parser
 
 
 main :: IO ()
-main = parseTest2
-
+--main = parseTest2 >>= process >>= mapM_ print
+--main = parseTest2
+main = do
+  (opts,content) <- interface
+  parseTest3 content opts
+{-  res <- parseTest2
+  mapM_ (throwError. runExcept >=> print) res
+  -}
+  
 
 parseTest :: IO ()
 parseTest = do
   (opts,content) <- interface
-  runExceptT (runReaderT (parseLines content) opts) >>=
-          throwError >>=           
-          mapM_ (throwError . runExcept >=> print) 
+  let parsed = runReader (parseLines content) opts
+  mapM_ (throwError . runExcept . (\(_,_,x) -> x) >=> print) parsed
 
--- TODO
---parse :: IO [[Except String (ParseResult Int Double)]]
+
 parseTest2 = do
   (opts, content) <- interface
-  parsed <- process $ runReader (parseLines content) opts
-  undefined
---  windows <- runReaderT (putWindows content) opts
---  mapM_ showWinLen windows
+  let parsed  = assertOrder $ runReader (parseLines content) opts
+  mapM_ (throwError . runExcept . third >=> print) parsed
+
+--parseTest3 :: T.Text -> ReaderT InterfaceOptions IO ()
+parseTest3 content opts = do
+  let parsed = runReader (parseLines content) opts
+  mapM_ (throwError . runExcept . third >=> print) parsed
+
   
 showWinLen (a,[]) = return ()
 showWinLen (a,(w:ws)) = do
@@ -49,25 +59,25 @@ showWinLen (a,(w:ws)) = do
   putStr "  -->>   "
   putStrLn . show . Seq.length $ values w
   showWinLen (a,ws)
-
-
-makeGroups :: [ParseResult Int b] ->
-             [[Except String (Maybe T.Text, Positional b Int)]]
-makeGroups xs = undefined
   
     
 -- A bit hacky maybe
 --putGroups :: [ParseResult Int b] -> [(Maybe T.Text, [Positional b Int])]
-putGroups content =
---   map (\xs -> (fst (head xs), map snd xs)) .
-   groupBy ((==) `on` fst) $
-       zipWith4
-          (\i g v p -> (g, Positional v $ maybe i id p))
-          [1..]
-          (map group content)
-          (map value content)
-          (map posit content)
-   
+putGroups content = do
+   is <- asks posCol
+   return . groupBy ((==) `on` fst) $
+     if isNothing is
+       then 
+         zipWith3
+            (\i g v -> (g, Positional v i))
+            [1..]
+            (map group content)
+            (map value content)
+       else
+         map
+           (\x -> (group x, Positional (value x) (maybe undefined id $ posit x)))
+           $content
+         
 
 interface :: IO (InterfaceOptions, T.Text)
 interface = do
@@ -78,10 +88,13 @@ interface = do
   contents <- TIO.hGetContents h
   return (opts, contents)
   
-process :: [Except String a] -> IO [a]
-process = mapM (throwError . runExcept)
+
+
+{- Misc Functions -}
 
 throwError = either (\l -> hPutStrLn stderr l >> exitFailure) return
+
+third (_,_,x) = x
 
 compareTwoExceptions :: (Monad m) =>
                         e ->
@@ -92,12 +105,27 @@ compareTwoExceptions :: (Monad m) =>
 compareTwoExceptions e p a b = ExceptT $ do
   f <$> runExceptT a <*> runExceptT b
   where
-    f (Right x) (Right y) = if p x y
-                            then Right x
-                            else Left e
+    f (Right x) (Right y) = if p x y then Right x else Left e
     f x _ = x
     
 assertAll :: (Applicative f, Foldable f) => f (a -> b -> Bool) -> a -> b -> Bool
 assertAll f x y = and $ f <*> pure x <*> pure y
   
-  
+assertOrder parsed =
+  pairMap (\(i,t,x) (j,t',y)->
+             (i, t,
+               compareTwoExceptions
+                  ("Not in order at line " ++
+                      show i ++
+                      "\n" ++
+                      T.unpack t ++
+                      "\n" ++
+                      T.unpack t')
+                  (fmap not <$> assertAll [(==) `on` group, (>) `on` posit])
+                  x
+                  y)) parsed
+
+pairMap f [] = []
+pairMap f [x] = [x]
+pairMap f (x:x':xs) =
+  f x x' : pairMap f (x':xs)

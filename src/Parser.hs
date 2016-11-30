@@ -8,23 +8,22 @@ import           Data.Typeable
 import           Control.Applicative         ((<*>), (<$>))
 import           Control.Monad.Trans         (lift)
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catchE)
+import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catchE, Except)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.Read as R    (Reader, decimal, double)
 
-type ParseResT m a b = ExceptT String m (ParseResult a b)
 
-parseLines :: (Monad m, Monad n) =>
+parseLines :: (Monad m) =>
                T.Text ->
-               ReaderT InterfaceOptions m [ParseResT n Int Double]
+               ReaderT InterfaceOptions m [ParseRes Int Double]
 parseLines xs = do
   h <- asks header
   let f = if h then tail else id
   parseLines' . f . zip [1..] $ T.lines xs
 
-parseLines' :: (Show a, Num a, Monad m, Monad n) =>
-               [(a, T.Text)] ->
-               ReaderT InterfaceOptions m [ParseResT n Int Double]
+parseLines' :: (Monad m) =>
+               [(Int, T.Text)] ->
+               ReaderT InterfaceOptions m [ParseRes Int Double]
 parseLines' []         = return []
 parseLines' ((i,x):xs) = do
   d <- asks $ maybe "\t" T.pack . sepChar -- Default to tab
@@ -33,10 +32,12 @@ parseLines' ((i,x):xs) = do
   v <- asks $ maybe 1 id . valueCol       -- Default to column 1
 
   let parts  = zip [1..] $ T.splitOn d x
-      res    = ParseResult
+      res    = (i,x, ParseResult
                    <$> maybeLookup "group" parts pure g
                    <*> maybeLookup "position" parts (read' R.decimal) p
-                   <*> catchLookup "value" parts (read' R.double) v
+                   <*> catchLookup "value" parts (read' R.double) v)
+                
+        
   rest <- parseLines' xs
   return (res:rest)
     where

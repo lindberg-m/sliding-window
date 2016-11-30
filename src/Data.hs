@@ -9,18 +9,19 @@ import Control.Monad.Trans.Except
 import Control.Monad.Reader
 import Control.Monad.Identity
 
-type App m a = ReaderT InterfaceOptions (ExceptT String m) a
-
-getAppT :: Monad m => App m a -> InterfaceOptions -> m (Either String a)
-getAppT r = runExceptT . runReaderT r
-getApp :: App Identity a -> InterfaceOptions -> Either String a
-getApp  r = runExcept . runReaderT r
-
 data ParseResult a b = ParseResult {
   group :: Maybe T.Text,
   posit :: Maybe a,
   value :: b
   } deriving (Show, Eq)
+
+type ParseRes a b = (Int, T.Text, Except String (ParseResult a b))
+
+data ParseRes' m a b = ParseRes' {
+  lineNr' :: Int,
+  source' :: T.Text,
+  result' :: ExceptT String m (ParseResult a b)
+}
 
 data InterfaceOptions =
   InterfaceOptions { infile    :: Maybe String,
