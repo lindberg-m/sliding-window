@@ -2,18 +2,20 @@ module Main where
 
 import qualified Data.Sequence as Seq
 import System.IO
+import System.IO.Unsafe                    (unsafeInterleaveIO)
 import System.Exit
 import Options.Applicative                 hiding (value)
 import Data.Function                       (on)
 import Data.List                           (groupBy, zipWith4)
 import Data.Maybe
+import Data.Either                         (isRight)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.IO as TIO
 import Control.Monad.Identity
 import Control.Monad                       ((>=>))
 import Control.Monad.IO.Class              (liftIO)
 import Control.Monad.Trans.Except          (runExcept, runExceptT, Except, ExceptT(..), throwE)
-import Control.Monad.Trans.Reader          (runReaderT, runReader, asks, ReaderT)
+import Control.Monad.Trans.Reader          (runReaderT, runReader, asks, ReaderT, Reader)
 
 import Window
 import Data
@@ -22,32 +24,23 @@ import Parser
 
 
 main :: IO ()
---main = parseTest2 >>= process >>= mapM_ print
---main = parseTest2
 main = do
   (opts,content) <- interface
-  parseTest3 content opts
-{-  res <- parseTest2
-  mapM_ (throwError. runExcept >=> print) res
-  -}
+  let snps = runReader (parseTest content) opts
+      (successes, failures) = span (isRight) $ map runExcept snps
   
 
-parseTest :: IO ()
-parseTest = do
-  (opts,content) <- interface
-  let parsed = runReader (parseLines content) opts
-  mapM_ (throwError . runExcept . (\(_,_,x) -> x) >=> print) parsed
+  mapM_ (\(Right a) -> print a) successes
+  mapM_ (\(Left a) -> hPutStrLn stderr a >> exitFailure) failures
+  
+  
+--parseTest :: T.Text -> Reader InterfaceOptions [Except String (SNP Double Int)]
+parseTest content = do
+  res <- parseLines content
+  return $ map (throwLineError toSNP) res
 
-
-parseTest2 = do
-  (opts, content) <- interface
-  let parsed  = assertOrder $ runReader (parseLines content) opts
-  mapM_ (throwError . runExcept . third >=> print) parsed
-
---parseTest3 :: T.Text -> ReaderT InterfaceOptions IO ()
-parseTest3 content opts = do
-  let parsed = runReader (parseLines content) opts
-  mapM_ (throwError . runExcept . third >=> print) parsed
+{-test res = map (assertOrder . map (f <$> zip [1..]))
+          $ groupBy ((==) `on` group) res-}
 
   
 showWinLen (a,[]) = return ()
@@ -92,17 +85,17 @@ interface = do
 
 {- Misc Functions -}
 
-throwError = either (\l -> hPutStrLn stderr l >> exitFailure) return
-
 third (_,_,x) = x
 
-compareTwoExceptions :: (Monad m) =>
+onThird f (a,b,c) = (a,b, f c)
+
+assertTwoExceptions :: (Monad m) =>
                         e ->
                         (a -> a -> Bool) ->
                         ExceptT e m a ->
                         ExceptT e m a ->
                         ExceptT e m a
-compareTwoExceptions e p a b = ExceptT $ do
+assertTwoExceptions e p a b = ExceptT $ do
   f <$> runExceptT a <*> runExceptT b
   where
     f (Right x) (Right y) = if p x y then Right x else Left e
@@ -111,21 +104,42 @@ compareTwoExceptions e p a b = ExceptT $ do
 assertAll :: (Applicative f, Foldable f) => f (a -> b -> Bool) -> a -> b -> Bool
 assertAll f x y = and $ f <*> pure x <*> pure y
   
-assertOrder parsed =
-  pairMap (\(i,t,x) (j,t',y)->
-             (i, t,
-               compareTwoExceptions
-                  ("Not in order at line " ++
-                      show i ++
-                      "\n" ++
-                      T.unpack t ++
-                      "\n" ++
-                      T.unpack t')
-                  (fmap not <$> assertAll [(==) `on` group, (>) `on` posit])
-                  x
-                  y)) parsed
+assertOrder :: Ord a => [ParseRes a b] -> [ParseRes a b]
+assertOrder = pairMap (\(i,t,x) (j,t',y)->
+   let
+     e = "Not in order at line " ++
+             show i ++
+             " and line " ++
+             show j ++
+             "\n" ++
+             T.unpack t ++
+             "\n" ++
+             T.unpack t'
+     p = fmap not <$> assertAll [(==) `on` group, (>) `on` posit]
+    in (i, t, assertTwoExceptions e p x y))
 
 pairMap f [] = []
 pairMap f [x] = [x]
 pairMap f (x:x':xs) =
   f x x' : pairMap f (x':xs)
+
+toSNP x = 
+   maybe (throwE "Couldn't access position from parse result")
+         (\p -> pure $ SNP (group x) p (value x))
+         (posit x)
+
+throwError :: (Show a, Show b) => Except a b -> IO b
+throwError x = unsafeInterleaveIO $
+    case runExcept x of
+      (Left e)  -> do
+        hPutStrLn stderr $ show e
+        return $ undefined
+      (Right a) -> return a
+
+runAllThings =
+  ExceptProcess (map (\x -> maybe
+                             (throwE "Couldn't access position from parse result")
+                             (\p -> pure $ SNP (group x) p (value x))
+                             (posit x)))
+  <--> undefined
+  

@@ -15,6 +15,12 @@ data ParseResult a b = ParseResult {
   value :: b
   } deriving (Show, Eq)
 
+data SNP a b = SNP {
+  snpChromosome :: Maybe T.Text,
+  snpPosition   :: b,
+  snpValue      :: a
+} deriving (Show, Eq)
+
 type ParseRes a b = (Int, T.Text, Except String (ParseResult a b))
 
 data ParseRes' m a b = ParseRes' {
@@ -57,7 +63,12 @@ class Ord a => HasPosition p a where
   onP2 f    = f `on` position
   compareP  = onP2 compare
 
-
+{-
+class ExceptionProcess a b c where
+  exeptionProcess :: a -> Except c b
+  undefined
+-}
+  
 -- Instances
 instance (Eq a, Eq b) => Eq (Positional a b) where
   (Positional x y) == (Positional x' y') =
@@ -68,4 +79,5 @@ instance (Show a, Show b) => Show (Positional a b) where
 instance Ord x => HasPosition (Positional a) x where
   position = pos
 
-
+instance Ord x => HasPosition (SNP a) x where
+  position = snpPosition

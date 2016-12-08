@@ -8,7 +8,7 @@ import           Data.Typeable
 import           Control.Applicative         ((<*>), (<$>))
 import           Control.Monad.Trans         (lift)
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catchE, Except)
+import           Control.Monad.Trans.Except  (ExceptT, throwE, mapExceptT, catchE, Except, runExcept, except)
 import qualified Data.Text.Lazy as T
 import qualified Data.Text.Lazy.Read as R    (Reader, decimal, double)
 
@@ -44,8 +44,8 @@ parseLines' ((i,x):xs) = do
        catchLookup e xs f j =
             catchE (lookupColumn j xs >>= f)
                    (\e' -> throwE $ unwords
-                               ["Parse error at line", show i, "\n", T.unpack x,
-                                "\nCouldn't parse column", show j, "for",
+--                               ["Parse error at line", show i, "\n", T.unpack x,
+                                ["\nCouldn't parse column", show j, "for",
                                  show e, "\n", e'])
        maybeLookup e xs f =
             maybe (pure Nothing)
@@ -68,4 +68,30 @@ read' r x = case r x of
       type' = show . typeOf . fst . right . r
       right (Right a) = a
       quote s = concat $ ["\"", s, "\""]
+
+throwLineError :: (ParseResult a b -> Except String c) -> ParseRes a b -> Except String c
+throwLineError f (i,t,x) =
+  catchE (x >>= f)  (\e -> throwE $ unwords
+                      ["Error at line nr", show i, ":\n"
+                       , T.unpack t,
+                       "\n\n", e])
+
+newtype ExceptProcess a b c =
+  ExceptProcess { runExceptProcess :: [a] -> [Except c b] }
+
+(<-->) :: ExceptProcess a b c -> ExceptProcess b d e -> ExceptProcess a d e
+(ExceptProcess f) <--> (ExceptProcess f') = ExceptProcess $ \xs -> let
+  (xs', es) = span isRight $ map runExcept $ f xs
+  (ys, es') = span isRight $ map runExcept $ f' (map right xs')
+  lastFail  = case safeHead es' of
+    [] -> safeHead es
+    x  -> x
+  in map except $ ys ++ lastFail
+  where
+    safeHead  []    = []
+    safeHhead (x:_) = [x]
+    isRight (Right _) = True
+    isRight _         = False
+    right (Right a) = a
+
 

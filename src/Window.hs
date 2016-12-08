@@ -2,8 +2,8 @@
 module Window (
   runSlidingWindow,
   slidingWindow,
-  initWindow,
-  checkListP
+  initWindow
+
   ) where
 
 import Data
@@ -66,6 +66,7 @@ coverage l u x = case l `compare` x of
 initWindow :: (Monad m) => ReaderT InterfaceOptions m (Window Int a)
 initWindow = asks wSize >>= \x -> (return $ Window 1 x mempty)
 
+{-
 checkListP :: (Monad m, HasPosition p a) =>
                  e ->
                  (a -> a -> Bool) ->
@@ -78,3 +79,4 @@ checkListP e f l@(x1:x2:_) = x : go
     go = checkListP e f $ tail l
     x  | onP2 f x1 x2 = pure x1
        | otherwise    = throwE e
+-}
